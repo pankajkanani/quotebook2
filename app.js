@@ -1,262 +1,314 @@
-$(document).ready(function() {
-  // Fetch categories (sheet names)
-  function loadCategories() {
-    $.ajax({
-      url: 'https://script.google.com/macros/s/AKfycbwLeesyNBCPPM-Zx24ZJlsSaNcr2Q0bJaMJiXJIjshE8EnPjBeQgZjOf6Cy7XD_SpuSFQ/exec?mode=listSheets',
-      method: 'GET',
-      success: function(data) {
-        if (Array.isArray(data)) {
-          renderCategories(data);
-        } else if (data.sheets) {
-          renderCategories(data.sheets);
+document.addEventListener('DOMContentLoaded', () => {
+    // --- State Management ---
+    const state = {
+        categories: [],
+        currentCategory: null,
+        currentPage: 1,
+        limit: 15,
+        totalPages: 1,
+        isLoading: false,
+        allDataLoaded: false,
+        themeMode: localStorage.getItem('themeMode') || 'light',
+        themeName: localStorage.getItem('themeName') || 'indigo',
+    };
+
+    const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbwLeesyNBCPPM-Zx24ZJlsSaNcr2Q0bJaMJiXJIjshE8EnPjBeQgZjOf6Cy7XD_SpuSFQ/exec';
+
+    // --- Gradient Theme Definitions ---
+    const themes = {
+        indigo: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+        teal: 'linear-gradient(135deg, #14b8a6, #2dd4bf)',
+        rose: 'linear-gradient(135deg, #f43f5e, #fb7185)',
+        amber: 'linear-gradient(135deg, #f59e0b, #fbbf24)',
+        sky: 'linear-gradient(135deg, #0ea5e9, #38bdf8)',
+    };
+    
+    // --- DOM Elements ---
+    const splashScreen = document.getElementById('splash-screen');
+    const messageContainer = document.getElementById('message-container');
+    const mainContent = document.getElementById('main-content');
+    const categoryContainer = document.getElementById('category-container');
+    const themeToggleBtn = document.getElementById('theme-toggle-btn');
+    const gotoPageBtn = document.getElementById('goto-page-btn');
+    const gotoPageModal = document.getElementById('goto-page-modal');
+    const themeModal = document.getElementById('theme-modal');
+
+    // --- Core Functions ---
+    const initApp = async () => {
+        applyTheme();
+        renderThemeSwatches();
+        setupEventListeners();
+        await fetchCategories();
+    };
+
+    const hideSplashScreen = () => {
+        if (splashScreen) {
+            splashScreen.classList.add('hidden');
+            // Optional: completely remove from DOM after fade out
+            setTimeout(() => {
+                splashScreen.remove();
+            }, 500); // Should match the transition duration in CSS
         }
-      },
-      error: function() {
-        $('#categories').html('<span style="color:red">Failed to load categories.</span>');
-      }
-    });
-  }
+    };
+    
+    const fetchCategories = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}?mode=listSheets`);
+            if (!response.ok) throw new Error('Network response was not ok');
+            
+            let data = await response.json();
+            state.categories = Array.isArray(data) ? data : data.sheets || [];
 
-  // Render category buttons with slider arrows
-  function renderCategories(categories) {
-    var html = '';
-    html += '<button class="category-slider-arrow left" style="display:none;">&#8592;</button>';
-    html += '<div class="categories-inner" style="display:flex;flex-wrap:nowrap;gap:0.5rem;width:100%;overflow-x:auto;">';
-    categories.forEach(function(cat, idx) {
-      html += `<button class="category-btn animate__animated animate__fadeInDown" data-category="${cat}" style="animation-delay:${idx*0.05}s;">${cat}</button>`;
-    });
-    html += '</div>';
-    html += '<button class="category-slider-arrow right">&#8594;</button>';
-    $('#categories').html(html);
-    // Auto-load first category
-    if (categories.length > 0) {
-      currentCategory = categories[0];
-      currentPage = 1;
-      loadMessages(currentCategory, currentPage, limit, false);
-      $(`.category-btn[data-category='${categories[0]}']`).addClass('active');
-    }
-    updateCategorySliderArrows();
-  }
-
-  // Update arrow visibility
-  function updateCategorySliderArrows() {
-    var $inner = $('.categories-inner');
-    var $left = $('.category-slider-arrow.left');
-    var $right = $('.category-slider-arrow.right');
-    if ($inner.length === 0) return;
-    var scrollLeft = $inner[0].scrollLeft;
-    var maxScroll = $inner[0].scrollWidth - $inner[0].clientWidth;
-    $left.css('display', scrollLeft > 5 ? 'flex' : 'none');
-    $right.css('display', scrollLeft < maxScroll - 5 ? 'flex' : 'none');
-  }
-
-  var currentCategory = null;
-  var currentPage = 1;
-  var limit = 10;
-  var allMessages = [];
-  var totalMessages = 0;
-  var maxPage = 1;
-
-  // Fetch and render messages for a category
-  function loadMessages(category, page = 1, limitVal = 10, append = false, showPagination = true) {
-    // Show custom loader inside container
-    $('#messages').empty();
-    $('#pagination').remove();
-    $('#messages').append('<div id="main-loader"><span class="loader"></span></div>');
-    allMessages = [];
-    totalMessages = 0;
-    $.ajax({
-      url: `https://script.google.com/macros/s/AKfycbwLeesyNBCPPM-Zx24ZJlsSaNcr2Q0bJaMJiXJIjshE8EnPjBeQgZjOf6Cy7XD_SpuSFQ/exec?sheet=${encodeURIComponent(category)}&page=${page}&limit=${limitVal}`,
-      method: 'GET',
-      success: function(data) {
-        var messages = data && data.data && Array.isArray(data.data) ? data.data : data;
-        if (!Array.isArray(messages)) messages = [];
-        allMessages = messages;
-        totalMessages = data.total || allMessages.length;
-        maxPage = Math.ceil(totalMessages / limitVal) || 1;
-        renderMessages(allMessages, totalMessages);
-        if (showPagination) {
-          renderPagination(page, maxPage);
+            if (state.categories.length > 0) {
+                renderCategories();
+                switchCategory(state.categories[0]);
+            } else {
+                hideSplashScreen(); // Hide splash before showing error
+                renderStatusMessage('No categories found.', 'fa-solid fa-folder-open');
+            }
+        } catch (error) {
+            console.error('Failed to fetch categories:', error);
+            hideSplashScreen(); // Hide splash before showing error
+            renderStatusMessage('Could not load categories.', 'fa-solid fa-triangle-exclamation');
         }
-      },
-      error: function() {
-        showSplashScreen('Failed to load messages. Please check your connection or try again.');
-        $('#pagination').remove();
-      }
-    });
-  }
+    };
 
-  // Splash screen for no data or error
-  function showSplashScreen(message) {
-    $('#messages').empty();
-    $('#messages').append(`
-      <div class="splash-screen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:220px;">
-        <div style="font-size:3.5rem;line-height:1;">😕</div>
-        <div style="font-size:1.3rem;font-weight:500;margin:1rem 0 0.5rem 0;color:#4e54c8;">Oops! No Data</div>
-        <div style="color:#888;font-size:1.05rem;text-align:center;max-width:90vw;">${message || 'No messages found for this category.'}</div>
-        <button class="category-btn" style="margin-top:1.5rem;" onclick="location.reload()">🔄 Reload</button>
-      </div>
-    `);
-  }
+    const fetchMessages = async () => {
+        if (state.isLoading || state.allDataLoaded) return;
+        
+        state.isLoading = true;
+        renderLoader(true);
 
-  // Render messages
-  function renderMessages(messages, total) {
-    if (!messages || !messages.length) {
-      showSplashScreen();
-      return;
-    }
-    var html = '';
-    messages.forEach(function(msg, idx) {
-      var text = msg.value ? msg.value : msg;
-      var encodedText = encodeURIComponent(text);
-      html += `<div class="message-card animate__animated animate__fadeInUp" style="animation-delay:${idx*0.07}s;">
-        <div class="message-text">${text.replace(/\n/g, '<br>')}</div>
-        <div class="message-actions">
-          <button class="copy-btn animate__animated animate__pulse" data-text="${encodedText}" title="Copy"><i class="fa-regular fa-copy"></i></button>
-          <a class="wa-share-btn animate__animated animate__pulse" href="https://wa.me/?text=${encodedText}" target="_blank" title="Share on WhatsApp"><i class="fab fa-whatsapp"></i></a>
-          <a class="fb-share-btn animate__animated animate__pulse" href="https://www.facebook.com/sharer/sharer.php?u=&quote=${encodedText}" target="_blank" title="Share on Facebook"><i class="fab fa-facebook-f"></i></a>
-          <a class="x-share-btn animate__animated animate__pulse" href="https://twitter.com/intent/tweet?text=${encodedText}" target="_blank" title="Share on X (Twitter)"><i class="fab fa-x-twitter"></i></a>
-        </div>
-      </div>`;
-    });
-    $('#messages').html(html);
-  }
+        const url = `${API_BASE_URL}?sheet=${encodeURIComponent(state.currentCategory)}&page=${state.currentPage}&limit=${state.limit}`;
 
-  // Copy to clipboard functionality
-  $(document).on('click', '.copy-btn', function() {
-    var btn = $(this);
-    var text = decodeURIComponent(btn.data('text'));
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text).then(function() {
-        var original = btn.html();
-        btn.html('✅');
-        setTimeout(function() { btn.html(original); }, 1200);
-      }, function() {
-        var original = btn.html();
-        btn.html('❌');
-        setTimeout(function() { btn.html(original); }, 1200);
-      });
-    } else {
-      // Fallback for older browsers
-      var temp = $('<textarea>');
-      $('body').append(temp);
-      temp.val(text).select();
-      document.execCommand('copy');
-      temp.remove();
-      var original = btn.html();
-      btn.html('✅ Copied!');
-      setTimeout(function() { btn.html(original); }, 1200);
-    }
-  });
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Network response was not ok');
+            
+            const result = await response.json();
+            
+            if (result.total) {
+                state.totalPages = Math.ceil(result.total / state.limit);
+            }
 
-  // Add per-page selector UI
-  function renderPerPageSelector() {
-    if ($('#perPageSelector').length) return;
-    var html = '<div id="perPageSelector" style="text-align:center;margin-bottom:1rem;">';
-    html += 'Show <select id="perPageSelect">';
-    [5, 10, 20, 50, 100].forEach(function(val) {
-      html += `<option value="${val}"${val === limit ? ' selected' : ''}>${val}</option>`;
-    });
-    html += '</select> per page</div>';
-    // Place per-page selector below messages, above pagination
-    if ($('#pagination').length) {
-      $('#pagination').before(html);
-    } else {
-      $('#messages').after(html);
-    }
-  }
+            const newMessages = result.data || [];
 
-  // Render pagination controls
-  function renderPagination(current, max) {
-    if (max <= 1) {
-      $('#pagination').remove();
-      $('#perPageSelector').remove();
-      return;
-    }
-    var html = '<div id="pagination" style="text-align:center;margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:4px;align-items:center;justify-content:center;">';
-    html += `<button class="page-btn" data-page="${current - 1}"${current === 1 ? ' disabled' : ''}>◀ Prev</button>`;
-    // Show up to 2 pages before and after current
-    var start = Math.max(1, current - 1);
-    var end = Math.min(max, current + 1);
-    if (start > 1) html += '<span style="margin:0 2px;">...</span>';
-    for (var i = start; i <= end; i++) {
-      html += `<button class="page-btn${i === current ? ' active' : ''}" data-page="${i}">${i}</button>`;
-    }
-    if (end < max) html += '<span style="margin:0 2px;">...</span>';
-    html += `<button class="page-btn" data-page="${current + 1}"${current === max ? ' disabled' : ''}>Next ▶</button>`;
-    html += `<span style="margin-left:8px;">Go to <input id="gotoPageInput" type="number" min="1" max="${max}" value="${current}" style="width:50px;"> / ${max}</span>`;
-    html += '</div>';
-    if ($('#pagination').length) {
-      $('#pagination').replaceWith(html);
-    } else {
-      $('#messages').after(html);
-    }
-    // Render per-page selector below messages, above pagination
-    if (!$('#perPageSelector').length) {
-      renderPerPageSelector();
-    }
-  }
+            if (newMessages.length > 0) {
+                renderMessages(newMessages);
+                state.currentPage++;
+            } else {
+                state.allDataLoaded = true;
+                if (state.currentPage === 1) {
+                    renderStatusMessage('No messages found in this category.', 'fa-solid fa-inbox');
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch messages:', error);
+            renderStatusMessage('Failed to load messages.', 'fa-solid fa-wifi');
+        } finally {
+            state.isLoading = false;
+            renderLoader(false);
+            // Hide the splash screen only after the first successful fetch
+            hideSplashScreen();
+        }
+    };
 
-  // Per-page selector change
-  $(document).on('change', '#perPageSelect', function() {
-    limit = parseInt($(this).val());
-    currentPage = 1;
-    loadMessages(currentCategory, currentPage, limit, false, true);
-  });
+    const switchCategory = (categoryName) => {
+        mainContent.scrollTop = 0;
+        messageContainer.innerHTML = '';
+        state.currentCategory = categoryName;
+        state.currentPage = 1;
+        state.totalPages = 1;
+        state.allDataLoaded = false;
+        
+        document.querySelectorAll('.category-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.category === categoryName);
+        });
 
-  // Jump to page input
-  $(document).on('change', '#gotoPageInput', function() {
-    var page = parseInt($(this).val());
-    if (!isNaN(page) && page >= 1 && page <= maxPage && page !== currentPage) {
-      currentPage = page;
-      loadMessages(currentCategory, currentPage, limit, false, true);
-    }
-  });
+        fetchMessages();
+    };
 
-  // Category button click
-  $('#categories').on('click', '.category-btn', function() {
-    $('.category-btn').removeClass('active');
-    $(this).addClass('active');
-    var category = $(this).data('category');
-    currentCategory = category;
-    currentPage = 1;
-    loadMessages(currentCategory, currentPage, limit, false);
-  });
+    const jumpToPage = (page) => {
+        if (page < 1 || page > state.totalPages) {
+            alert(`Invalid page number. Please enter a number between 1 and ${state.totalPages}.`);
+            return;
+        }
+        
+        mainContent.scrollTop = 0;
+        messageContainer.innerHTML = '';
+        state.currentPage = page;
+        state.allDataLoaded = false;
+        
+        fetchMessages();
+    };
 
-  // Page button click
-  $(document).on('click', '.page-btn', function() {
-    var page = parseInt($(this).data('page'));
-    if (!isNaN(page) && page >= 1 && page <= maxPage && page !== currentPage) {
-      currentPage = page;
-      loadMessages(currentCategory, currentPage, limit, false, true);
-    }
-  });
+    // --- Rendering Functions ---
+    const renderCategories = () => {
+        categoryContainer.innerHTML = '';
+        state.categories.forEach(category => {
+            const btn = document.createElement('button');
+            btn.className = 'category-btn';
+            btn.dataset.category = category;
+            btn.innerHTML = `<i class="${getCategoryIcon(category)}"></i><span>${category}</span>`;
+            btn.addEventListener('click', () => switchCategory(category));
+            categoryContainer.appendChild(btn);
+        });
+    };
+    
+    const renderMessages = (messages) => {
+        const fragment = document.createDocumentFragment();
+        messages.forEach((msg, index) => {
+            const text = msg.value || msg;
+            const encodedText = encodeURIComponent(text);
+            const author = state.currentCategory;
 
-  // Arrow click handlers
-  $(document).on('click', '.category-slider-arrow.left', function() {
-    var $inner = $('.categories-inner');
-    $inner.animate({ scrollLeft: $inner.scrollLeft() - 120 }, 200, updateCategorySliderArrows);
-  });
-  $(document).on('click', '.category-slider-arrow.right', function() {
-    var $inner = $('.categories-inner');
-    $inner.animate({ scrollLeft: $inner.scrollLeft() + 120 }, 200, updateCategorySliderArrows);
-  });
-  // Update arrows on scroll
-  $(document).on('scroll', '.categories-inner', updateCategorySliderArrows);
+            const card = document.createElement('div');
+            card.className = 'message-card';
+            card.style.animationDelay = `${index * 0.07}s`;
+            
+            card.innerHTML = `
+                <div class="card-inner">
+                    <div class="message-text">${text}</div>
+                    <div class="card-footer">
+                        <div class="author-tag">${author}</div>
+                        <div class="message-actions">
+                            <button class="action-btn copy-btn" title="Copy"><i class="fa-regular fa-copy"></i></button>
+                            <a class="action-btn" href="https://wa.me/?text=${encodedText}" target="_blank" title="Share on WhatsApp"><i class="fab fa-whatsapp"></i></a>
+                            <a class="action-btn" href="https://twitter.com/intent/tweet?text=${encodedText}" target="_blank" title="Share on X (Twitter)"><i class="fab fa-x-twitter"></i></a>
+                        </div>
+                    </div>
+                </div>
+            `;
 
-  // Initial load
-  function initialLoad() {
-    loadCategories();
-    renderPerPageSelector();
-    currentCategory = null;
-    currentPage = 1;
-  }
-  initialLoad();
+            card.querySelector('.copy-btn').addEventListener('click', (e) => copyToClipboard(text, e.currentTarget));
+            fragment.appendChild(card);
+        });
+        messageContainer.appendChild(fragment);
+    };
 
-  // Hide splash loader after 20 seconds
-  $(function() {
-    setTimeout(function() {
-      $('#container-loader-overlay').fadeOut(100);
-    }, 6000);
-  });
+    const renderLoader = (show) => {
+        let loader = messageContainer.querySelector('.loader-container');
+        if (show) {
+            if (!loader) {
+                const loaderContainer = document.createElement('div');
+                loaderContainer.className = 'loader-container';
+                loaderContainer.innerHTML = `<div class="typing-loader"><div></div><div></div><div></div></div>`;
+                messageContainer.appendChild(loaderContainer);
+            }
+        } else {
+            if (loader) {
+                loader.remove();
+            }
+        }
+    };
+
+    const renderStatusMessage = (message, iconClass) => {
+        messageContainer.innerHTML = `<div class="status-message"><i class="${iconClass}"></i><p>${message}</p></div>`;
+    };
+
+    const renderThemeSwatches = () => {
+        const container = document.getElementById('theme-options');
+        container.innerHTML = '';
+        Object.entries(themes).forEach(([name, gradient]) => {
+            const swatch = document.createElement('button');
+            swatch.className = 'theme-swatch';
+            if (name === state.themeName) swatch.classList.add('active');
+            swatch.style.background = gradient;
+            swatch.dataset.themeName = name;
+            swatch.addEventListener('click', () => {
+                state.themeName = name;
+                applyTheme();
+                document.querySelectorAll('.theme-swatch').forEach(s => s.classList.remove('active'));
+                swatch.classList.add('active');
+            });
+            container.appendChild(swatch);
+        });
+    };
+
+    // --- Helper Functions ---
+    const applyTheme = () => {
+        document.documentElement.style.setProperty('--primary-gradient', themes[state.themeName]);
+        document.documentElement.style.setProperty('--primary-color', themes[state.themeName].split(', ')[1]);
+        document.body.dataset.themeMode = state.themeMode;
+        
+        localStorage.setItem('themeMode', state.themeMode);
+        localStorage.setItem('themeName', state.themeName);
+    };
+
+    const copyToClipboard = (text, button) => {
+        navigator.clipboard.writeText(text).then(() => {
+            button.innerHTML = '<i class="fa-solid fa-check"></i>';
+            setTimeout(() => {
+                button.innerHTML = '<i class="fa-regular fa-copy"></i>';
+            }, 2000);
+        }).catch(err => console.error('Failed to copy text: ', err));
+    };
+
+    const getCategoryIcon = (category) => {
+        const cat = category.toLowerCase().trim();
+        switch (cat) {
+            case 'goodmorning': return 'fa-solid fa-sun';
+            case 'goodnight': return 'fa-solid fa-moon';
+            case 'jokes': return 'fa-solid fa-face-laugh-squint';
+            case 'shayri': return 'fa-solid fa-heart-pulse';
+            case 'hindiquotes': return 'fa-solid fa-quote-left';
+            case 'suvichar': return 'fa-solid fa-brain';
+            case 'love': return 'fa-solid fa-heart';
+            case 'sad': return 'fa-solid fa-face-sad-tear';
+            case 'broken': case 'bewafa': return 'fa-solid fa-heart-crack';
+            case 'romantic': return 'fa-solid fa-face-kiss-wink-heart';
+            case 'breakup': return 'fa-solid fa-handshake-angle';
+            case 'missyou': return 'fa-solid fa-comment-dots';
+            case 'bholenath': return 'fa-solid fa-om';
+            case 'attitude': return 'fa-solid fa-fire';
+            case 'dosti': return 'fa-solid fa-user-group';
+            default: return 'fa-solid fa-grip'; 
+        }
+    };
+
+    // --- Event Listeners ---
+    const setupEventListeners = () => {
+        themeToggleBtn.addEventListener('click', () => {
+            themeModal.classList.add('visible');
+        });
+        
+        mainContent.addEventListener('scroll', () => {
+            const { scrollTop, scrollHeight, clientHeight } = mainContent;
+            if (scrollTop + clientHeight >= scrollHeight - 300) {
+                fetchMessages();
+            }
+        });
+
+        const pageNumberInput = document.getElementById('page-number-input');
+        gotoPageBtn.addEventListener('click', () => {
+            document.getElementById('modal-page-info').textContent = `Enter a page number (1 - ${state.totalPages})`;
+            pageNumberInput.value = '';
+            gotoPageModal.classList.add('visible');
+            pageNumberInput.focus();
+        });
+        document.getElementById('modal-go-btn').addEventListener('click', () => {
+            const pageNum = parseInt(pageNumberInput.value, 10);
+            if (!isNaN(pageNum)) {
+                jumpToPage(pageNum);
+                gotoPageModal.classList.remove('visible');
+            }
+        });
+
+        [gotoPageModal, themeModal].forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('visible');
+                }
+            });
+            const cancelBtn = modal.querySelector('.modal-btn.cancel');
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => {
+                    modal.classList.remove('visible');
+                });
+            }
+        });
+    };
+
+    // --- Initial Load ---
+    initApp();
 });
