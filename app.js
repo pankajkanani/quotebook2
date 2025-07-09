@@ -247,8 +247,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const getCategoryIcon = (category) => {
         const cat = category.toLowerCase().trim();
         switch (cat) {
-            case 'goodmorning': return 'fa-solid fa-sun';
-            case 'goodnight': return 'fa-solid fa-moon';
+            case 'morning': return 'fa-solid fa-sun';
+            case 'night': return 'fa-solid fa-moon';
             case 'jokes': return 'fa-solid fa-face-laugh-squint';
             case 'shayri': return 'fa-solid fa-heart-pulse';
             case 'hindiquotes': return 'fa-solid fa-quote-left';
