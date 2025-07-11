@@ -10,6 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
         allDataLoaded: false,
         themeMode: localStorage.getItem('themeMode') || 'light',
         themeName: localStorage.getItem('themeName') || 'indigo',
+        searchActive: false,
+        searchQuery: '',
+        searchPage: 1,
+        searchAllLoaded: false,
     };
 
     const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbwLeesyNBCPPM-Zx24ZJlsSaNcr2Q0bJaMJiXJIjshE8EnPjBeQgZjOf6Cy7XD_SpuSFQ/exec';
@@ -32,6 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const gotoPageBtn = document.getElementById('goto-page-btn');
     const gotoPageModal = document.getElementById('goto-page-modal');
     const themeModal = document.getElementById('theme-modal');
+    const searchInput = document.getElementById('search-input');
+    const searchBtn = document.getElementById('search-btn');
 
     // --- Core Functions ---
     const initApp = async () => {
@@ -74,25 +80,23 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const fetchMessages = async () => {
-        if (state.isLoading || state.allDataLoaded) return;
-        
+        if (state.isLoading) return;
+        if (state.searchActive && state.searchQuery) {
+            fetchSearchResults(state.searchQuery, state.searchPage, true);
+            return;
+        }
+        if (state.allDataLoaded) return;
         state.isLoading = true;
         renderLoader(true);
-
         const url = `${API_BASE_URL}?sheet=${encodeURIComponent(state.currentCategory)}&page=${state.currentPage}&limit=${state.limit}`;
-
         try {
             const response = await fetch(url);
             if (!response.ok) throw new Error('Network response was not ok');
-            
             const result = await response.json();
-            
             if (result.total) {
                 state.totalPages = Math.ceil(result.total / state.limit);
             }
-
             const newMessages = result.data || [];
-
             if (newMessages.length > 0) {
                 renderMessages(newMessages);
                 state.currentPage++;
@@ -113,6 +117,41 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // --- Search Functionality ---
+    const fetchSearchResults = async (query, page = 1, append = false) => {
+        if (!query.trim()) return;
+        if (state.isLoading || state.searchAllLoaded) return;
+        state.isLoading = true;
+        if (!append) {
+            messageContainer.innerHTML = '';
+            state.searchPage = 1;
+            state.searchAllLoaded = false;
+            // Remove active category highlight
+            document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
+        }
+        renderLoader(true);
+        try {
+            const url = `${API_BASE_URL}?mode=search&q=${encodeURIComponent(query)}&page=${page}&limit=20`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Network response was not ok');
+            const result = await response.json();
+            const messages = result.data || [];
+            if (messages.length > 0) {
+                renderSearchResults(messages, query, append);
+                state.searchPage++;
+            } else {
+                state.searchAllLoaded = true;
+                if (!append) renderStatusMessage('No results found for your search.', 'fa-solid fa-magnifying-glass');
+            }
+        } catch (error) {
+            console.error('Search failed:', error);
+            renderStatusMessage('Failed to fetch search results.', 'fa-solid fa-wifi');
+        } finally {
+            state.isLoading = false;
+            renderLoader(false);
+        }
+    };
+
     const switchCategory = (categoryName) => {
         mainContent.scrollTop = 0;
         messageContainer.innerHTML = '';
@@ -120,25 +159,14 @@ document.addEventListener('DOMContentLoaded', () => {
         state.currentPage = 1;
         state.totalPages = 1;
         state.allDataLoaded = false;
-        
+        state.searchActive = false;
+        state.searchQuery = '';
+        state.searchPage = 1;
+        state.searchAllLoaded = false;
         document.querySelectorAll('.category-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.category === categoryName);
         });
 
-        fetchMessages();
-    };
-
-    const jumpToPage = (page) => {
-        if (page < 1 || page > state.totalPages) {
-            alert(`Invalid page number. Please enter a number between 1 and ${state.totalPages}.`);
-            return;
-        }
-        
-        mainContent.scrollTop = 0;
-        messageContainer.innerHTML = '';
-        state.currentPage = page;
-        state.allDataLoaded = false;
-        
         fetchMessages();
     };
 
@@ -180,6 +208,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
+            card.querySelector('.copy-btn').addEventListener('click', (e) => copyToClipboard(text, e.currentTarget));
+            fragment.appendChild(card);
+        });
+        messageContainer.appendChild(fragment);
+    };
+
+    const renderSearchResults = (messages, query, append = false) => {
+        let fragment = document.createDocumentFragment();
+        if (!append) {
+            const header = document.createElement('div');
+            header.className = 'search-header';
+            header.innerHTML = `<i class='fa-solid fa-magnifying-glass'></i> <span>Results for "${query}"</span>`;
+            fragment.appendChild(header);
+        }
+        messages.forEach((msg, index) => {
+            const text = msg.value || msg;
+            const author = msg.sheet ;
+            const encodedText = encodeURIComponent(text);
+            const card = document.createElement('div');
+            card.className = 'message-card search-card';
+            card.style.animationDelay = `${index * 0.05}s`;
+            card.innerHTML = `
+                <div class="card-inner">
+                    <div class="message-text">${text}</div>
+                    <div class="card-footer">
+                        <div class="author-tag">${author}</div>
+                        <div class="message-actions">
+                            <button class="action-btn copy-btn" title="Copy"><i class="fa-regular fa-copy"></i></button>
+                            <a class="action-btn" href="https://wa.me/?text=${encodedText}" target="_blank" title="Share on WhatsApp"><i class="fab fa-whatsapp"></i></a>
+                            <a class="action-btn" href="https://twitter.com/intent/tweet?text=${encodedText}" target="_blank" title="Share on X (Twitter)"><i class="fab fa-x-twitter"></i></a>
+                        </div>
+                    </div>
+                </div>
+            `;
             card.querySelector('.copy-btn').addEventListener('click', (e) => copyToClipboard(text, e.currentTarget));
             fragment.appendChild(card);
         });
@@ -247,8 +309,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const getCategoryIcon = (category) => {
         const cat = category.toLowerCase().trim();
         switch (cat) {
-            case 'morning': return 'fa-solid fa-sun';
-            case 'night': return 'fa-solid fa-moon';
+            case 'goodmorning': return 'fa-solid fa-sun';
+            case 'goodnight': return 'fa-solid fa-moon';
             case 'jokes': return 'fa-solid fa-face-laugh-squint';
             case 'shayri': return 'fa-solid fa-heart-pulse';
             case 'hindiquotes': return 'fa-solid fa-quote-left';
@@ -266,6 +328,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const jumpToPage = (page) => {
+        if (state.searchActive && state.searchQuery) {
+            if (page < 1) {
+                alert(`Invalid page number. Please enter a number greater than 0.`);
+                return;
+            }
+            messageContainer.innerHTML = '';
+            state.searchPage = page;
+            state.searchAllLoaded = false;
+            fetchSearchResults(state.searchQuery, page);
+        } else {
+            if (page < 1 || page > state.totalPages) {
+                alert(`Invalid page number. Please enter a number between 1 and ${state.totalPages}.`);
+                return;
+            }
+            mainContent.scrollTop = 0;
+            messageContainer.innerHTML = '';
+            state.currentPage = page;
+            state.allDataLoaded = false;
+            fetchMessages();
+        }
+    };
+
     // --- Event Listeners ---
     const setupEventListeners = () => {
         themeToggleBtn.addEventListener('click', () => {
@@ -275,7 +360,11 @@ document.addEventListener('DOMContentLoaded', () => {
         mainContent.addEventListener('scroll', () => {
             const { scrollTop, scrollHeight, clientHeight } = mainContent;
             if (scrollTop + clientHeight >= scrollHeight - 300) {
-                fetchMessages();
+                if (state.searchActive) {
+                    fetchSearchResults(state.searchQuery, state.searchPage, true);
+                } else {
+                    fetchMessages();
+                }
             }
         });
 
@@ -291,6 +380,29 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!isNaN(pageNum)) {
                 jumpToPage(pageNum);
                 gotoPageModal.classList.remove('visible');
+            }
+        });
+
+        searchBtn.addEventListener('click', () => {
+            const query = searchInput.value;
+            if (query.trim()) {
+                state.searchActive = true;
+                state.searchQuery = query;
+                state.searchPage = 1;
+                state.searchAllLoaded = false;
+                fetchSearchResults(query);
+            }
+        });
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const query = searchInput.value;
+                if (query.trim()) {
+                    state.searchActive = true;
+                    state.searchQuery = query;
+                    state.searchPage = 1;
+                    state.searchAllLoaded = false;
+                    fetchSearchResults(query);
+                }
             }
         });
 
