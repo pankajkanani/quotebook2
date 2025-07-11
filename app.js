@@ -212,6 +212,16 @@ document.addEventListener('DOMContentLoaded', () => {
             fragment.appendChild(card);
         });
         messageContainer.appendChild(fragment);
+
+        // --- SEO Update ---
+        if (messages.length > 0) {
+            const firstText = messages[0].value || messages[0];
+            // If tweet message, use a specific image or fallback
+            const image = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4dd.png';
+            updateSEOMeta(`Quotes | ${state.currentCategory}`, firstText, image);
+        } else {
+            updateSEOMeta('Quotes & Jokes App', 'Discover and share the best quotes, jokes, shayari, and more.', 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4dd.png');
+        }
     };
 
     const renderSearchResults = (messages, query, append = false) => {
@@ -246,6 +256,16 @@ document.addEventListener('DOMContentLoaded', () => {
             fragment.appendChild(card);
         });
         messageContainer.appendChild(fragment);
+
+        // --- SEO Update ---
+        if (messages.length > 0) {
+            const firstText = messages[0].value || messages[0];
+            // If tweet message, use a specific image or fallback
+            const image = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4dd.png';
+            updateSEOMeta(`Search: ${query} | Quotes`, firstText, image);
+        } else {
+            updateSEOMeta('Quotes & Jokes App', 'Discover and share the best quotes, jokes, shayari, and more.', 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4dd.png');
+        }
     };
 
     const renderLoader = (show) => {
@@ -285,6 +305,25 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             container.appendChild(swatch);
         });
+    };
+
+    // --- SEO Helper ---
+    const updateSEOMeta = (title, description, image) => {
+        document.title = title;
+        let descTag = document.querySelector('meta[name="description"]');
+        if (descTag) descTag.setAttribute('content', description);
+        let ogTitle = document.querySelector('meta[property="og:title"]');
+        if (ogTitle) ogTitle.setAttribute('content', title);
+        let ogDesc = document.querySelector('meta[property="og:description"]');
+        if (ogDesc) ogDesc.setAttribute('content', description);
+        let twitterTitle = document.querySelector('meta[name="twitter:title"]');
+        if (twitterTitle) twitterTitle.setAttribute('content', title);
+        let twitterDesc = document.querySelector('meta[name="twitter:description"]');
+        if (twitterDesc) twitterDesc.setAttribute('content', description);
+        let ogImage = document.querySelector('meta[property="og:image"]');
+        if (ogImage && image) ogImage.setAttribute('content', image);
+        let twitterImage = document.querySelector('meta[name="twitter:image"]');
+        if (twitterImage && image) twitterImage.setAttribute('content', image);
     };
 
     // --- Helper Functions ---
