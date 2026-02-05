@@ -1,45 +1,44 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Quotes & Jokes App</title>
+    <title>हिंदी Quotes & Jokes</title>
     <meta name="description" content="Discover and share the best quotes, jokes, shayari, and more. Search, copy, and share your favorites instantly!">
     <meta name="keywords" content="quotes, jokes, shayari, suvichar, love, sad, motivational, whatsapp, twitter, share, search">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="gujaratiquotes.netlify.app">
-    <!-- Open Graph / Facebook -->
     <meta property="og:title" content="Quotes & Jokes App">
     <meta property="og:description" content="Discover and share the best quotes, jokes, shayari, and more. Search, copy, and share your favorites instantly!">
     <meta property="og:type" content="website">
     <meta property="og:url" content="gujaratiquotes.netlify.app">
     <meta property="og:image" content="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4dd.png">
-    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Quotes & Jokes App">
     <meta name="twitter:description" content="Discover and share the best quotes, jokes, shayari, and more. Search, copy, and share your favorites instantly!">
     <meta name="twitter:image" content="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4dd.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="icon" type="image/png" href="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4dd.png">
 </head>
 <body>
-    <!-- NEW: Animated Gradient Background -->
     <div class="gradient-bg"></div>
 
     <div id="app-container">
         <div id="splash-screen" class="splash-screen-overlay">
             <div class="splash-loader"></div>
-            <p>Getting things ready...</p>
+            <p>लोड हो रहा है...</p>
         </div>
-        <!-- App Header (Fixed Top) -->
         <header class="app-header">
             <div class="header-logo">
                 <span class="app-icon">📚</span>
-                <h1>Quotes</h1>
+                <h1>हिंदी Quotes</h1>
             </div>
             <div class="header-actions">
-                <input type="text" id="search-input" class="header-search" placeholder="Search..." />
+                <input type="text" id="search-input" class="header-search" placeholder="खोजें..." />
                 <button id="search-btn" class="header-icon-btn" title="Search">
                     <i class="fa-solid fa-magnifying-glass"></i>
                 </button>
@@ -52,41 +51,36 @@
             </div>
         </header>
 
-        <!-- Main Content (Scrollable) -->
         <main class="main-content" id="main-content">
-            <div id="message-container" class="message-container">
-                <!-- Loader and messages will be injected here -->
+            <div id="message-container" class="message-container"></div>
+            <div class="pagination-bar" id="pagination-bar">
+                <button class="pagination-btn" id="prev-page-btn">पिछला</button>
+                <div class="pagination-info" id="pagination-info">Page 1 of 1</div>
+                <button class="pagination-btn" id="next-page-btn">अगला</button>
             </div>
         </main>
 
-        <!-- App Footer (Fixed Bottom Navigation) -->
         <footer class="app-footer">
-            <div id="category-container" class="category-container">
-                <!-- Category buttons will be injected here -->
-            </div>
+            <div id="category-container" class="category-container"></div>
         </footer>
     </div>
 
-    <!-- "Go to Page" Modal -->
     <div id="goto-page-modal" class="modal-overlay">
         <div class="modal-content">
-            <h3>Go to Page</h3>
-            <p id="modal-page-info">Enter a page number to jump to.</p>
+            <h3>पेज पर जाएं</h3>
+            <p id="modal-page-info">पेज नंबर डालें।</p>
             <input type="number" id="page-number-input" placeholder="Page number...">
             <div class="modal-actions">
-                <button id="modal-cancel-btn" class="modal-btn cancel">Cancel</button>
-                <button id="modal-go-btn" class="modal-btn go">Go</button>
+                <button id="modal-cancel-btn" class="modal-btn cancel">रद्द करें</button>
+                <button id="modal-go-btn" class="modal-btn go">जाएं</button>
             </div>
         </div>
     </div>
     
-    <!-- NEW: Theme Switcher Modal -->
     <div id="theme-modal" class="modal-overlay">
         <div class="modal-content">
-            <h3>Choose a Theme</h3>
-            <div id="theme-options" class="theme-options">
-                <!-- Theme swatches will be injected here -->
-            </div>
+            <h3>थीम चुनें</h3>
+            <div id="theme-options" class="theme-options"></div>
         </div>
     </div>
 
