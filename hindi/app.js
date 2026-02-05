@@ -4,15 +4,18 @@ document.addEventListener('DOMContentLoaded', () => {
         categories: [],
         currentCategory: null,
         currentPage: 1,
+        displayPage: 0,
         limit: 15,
         totalPages: 1,
         isLoading: false,
         allDataLoaded: false,
         themeMode: localStorage.getItem('themeMode') || 'light',
         themeName: localStorage.getItem('themeName') || 'indigo',
+        likedMessages: JSON.parse(localStorage.getItem('likedMessages') || '{}'),
         searchActive: false,
         searchQuery: '',
         searchPage: 1,
+        searchDisplayPage: 0,
         searchAllLoaded: false,
     };
 
@@ -38,6 +41,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeModal = document.getElementById('theme-modal');
     const searchInput = document.getElementById('search-input');
     const searchBtn = document.getElementById('search-btn');
+    const paginationInfo = document.getElementById('pagination-info');
+    const prevPageBtn = document.getElementById('prev-page-btn');
+    const nextPageBtn = document.getElementById('next-page-btn');
 
     // --- Core Functions ---
     const initApp = async () => {
@@ -88,7 +94,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.allDataLoaded) return;
         state.isLoading = true;
         renderLoader(true);
-        const url = `${API_BASE_URL}?sheet=${encodeURIComponent(state.currentCategory)}&page=${state.currentPage}&limit=${state.limit}`;
+        const pageToLoad = state.currentPage;
+        const url = `${API_BASE_URL}?sheet=${encodeURIComponent(state.currentCategory)}&page=${pageToLoad}&limit=${state.limit}`;
         try {
             const response = await fetch(url);
             if (!response.ok) throw new Error('Network response was not ok');
@@ -99,6 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const newMessages = result.data || [];
             if (newMessages.length > 0) {
                 renderMessages(newMessages);
+                state.displayPage = pageToLoad;
                 state.currentPage++;
             } else {
                 state.allDataLoaded = true;
@@ -114,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderLoader(false);
             // Hide the splash screen only after the first successful fetch
             hideSplashScreen();
+            updatePagination();
         }
     };
 
@@ -138,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const messages = result.data || [];
             if (messages.length > 0) {
                 renderSearchResults(messages, query, append);
+                state.searchDisplayPage = page;
                 state.searchPage++;
             } else {
                 state.searchAllLoaded = true;
@@ -149,6 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             state.isLoading = false;
             renderLoader(false);
+            updatePagination();
         }
     };
 
@@ -157,17 +168,20 @@ document.addEventListener('DOMContentLoaded', () => {
         messageContainer.innerHTML = '';
         state.currentCategory = categoryName;
         state.currentPage = 1;
+        state.displayPage = 0;
         state.totalPages = 1;
         state.allDataLoaded = false;
         state.searchActive = false;
         state.searchQuery = '';
         state.searchPage = 1;
+        state.searchDisplayPage = 0;
         state.searchAllLoaded = false;
         document.querySelectorAll('.category-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.category === categoryName);
         });
 
         fetchMessages();
+        updatePagination();
     };
 
     // --- Rendering Functions ---
@@ -189,6 +203,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const text = msg.value || msg;
             const encodedText = encodeURIComponent(text);
             const author = state.currentCategory;
+            const messageKey = getMessageKey(text, author);
+            const liked = Boolean(state.likedMessages[messageKey]);
 
             const card = document.createElement('div');
             card.className = 'message-card';
@@ -200,6 +216,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="card-footer">
                         <div class="author-tag">${author}</div>
                         <div class="message-actions">
+                            <button class="action-btn like-btn ${liked ? 'active' : ''}" data-message-key="${messageKey}" aria-pressed="${liked}" title="Like">
+                                <i class="${liked ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
+                            </button>
                             <button class="action-btn copy-btn" title="Copy"><i class="fa-regular fa-copy"></i></button>
                             <a class="action-btn" href="https://wa.me/?text=${encodedText}" target="_blank" title="Share on WhatsApp"><i class="fab fa-whatsapp"></i></a>
                             <a class="action-btn" href="https://twitter.com/intent/tweet?text=${encodedText}" target="_blank" title="Share on X (Twitter)"><i class="fab fa-x-twitter"></i></a>
@@ -208,6 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
+            card.querySelector('.like-btn').addEventListener('click', (e) => toggleLike(e.currentTarget));
             card.querySelector('.copy-btn').addEventListener('click', (e) => copyToClipboard(text, e.currentTarget));
             fragment.appendChild(card);
         });
@@ -236,6 +256,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const text = msg.value || msg;
             const author = msg.sheet ;
             const encodedText = encodeURIComponent(text);
+            const messageKey = getMessageKey(text, author);
+            const liked = Boolean(state.likedMessages[messageKey]);
             const card = document.createElement('div');
             card.className = 'message-card search-card';
             card.style.animationDelay = `${index * 0.05}s`;
@@ -245,6 +267,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="card-footer">
                         <div class="author-tag">${author}</div>
                         <div class="message-actions">
+                            <button class="action-btn like-btn ${liked ? 'active' : ''}" data-message-key="${messageKey}" aria-pressed="${liked}" title="Like">
+                                <i class="${liked ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
+                            </button>
                             <button class="action-btn copy-btn" title="Copy"><i class="fa-regular fa-copy"></i></button>
                             <a class="action-btn" href="https://wa.me/?text=${encodedText}" target="_blank" title="Share on WhatsApp"><i class="fab fa-whatsapp"></i></a>
                             <a class="action-btn" href="https://twitter.com/intent/tweet?text=${encodedText}" target="_blank" title="Share on X (Twitter)"><i class="fab fa-x-twitter"></i></a>
@@ -252,6 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
             `;
+            card.querySelector('.like-btn').addEventListener('click', (e) => toggleLike(e.currentTarget));
             card.querySelector('.copy-btn').addEventListener('click', (e) => copyToClipboard(text, e.currentTarget));
             fragment.appendChild(card);
         });
@@ -307,6 +333,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    const updatePagination = () => {
+        if (!paginationInfo) return;
+        if (state.searchActive) {
+            const currentPage = state.searchDisplayPage || 1;
+            paginationInfo.textContent = `Page ${currentPage}`;
+            prevPageBtn.disabled = currentPage <= 1;
+            nextPageBtn.disabled = state.searchAllLoaded && currentPage >= state.searchDisplayPage;
+            return;
+        }
+        const currentPage = state.displayPage || 1;
+        paginationInfo.textContent = `Page ${currentPage} of ${state.totalPages}`;
+        prevPageBtn.disabled = currentPage <= 1;
+        nextPageBtn.disabled = currentPage >= state.totalPages;
+    };
+
     // --- SEO Helper ---
     const updateSEOMeta = (title, description, image) => {
         document.title = title;
@@ -339,10 +380,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyToClipboard = (text, button) => {
         navigator.clipboard.writeText(text).then(() => {
             button.innerHTML = '<i class="fa-solid fa-check"></i>';
+            button.classList.add('copied');
             setTimeout(() => {
                 button.innerHTML = '<i class="fa-regular fa-copy"></i>';
+                button.classList.remove('copied');
             }, 2000);
         }).catch(err => console.error('Failed to copy text: ', err));
+    };
+
+    const getMessageKey = (text, author) => {
+        return `${author}::${text}`.replace(/\s+/g, ' ').trim().toLowerCase();
+    };
+
+    const toggleLike = (button) => {
+        const messageKey = button.dataset.messageKey;
+        const isActive = button.classList.contains('active');
+        if (isActive) {
+            delete state.likedMessages[messageKey];
+        } else {
+            state.likedMessages[messageKey] = true;
+        }
+        localStorage.setItem('likedMessages', JSON.stringify(state.likedMessages));
+        button.classList.toggle('active');
+        button.setAttribute('aria-pressed', String(!isActive));
+        button.innerHTML = `<i class=\"${!isActive ? 'fa-solid' : 'fa-regular'} fa-heart\"></i>`;
     };
 
     const getCategoryIcon = (category) => {
@@ -428,6 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.searchActive = true;
                 state.searchQuery = query;
                 state.searchPage = 1;
+                state.searchDisplayPage = 0;
                 state.searchAllLoaded = false;
                 fetchSearchResults(query);
             }
@@ -439,8 +501,41 @@ document.addEventListener('DOMContentLoaded', () => {
                     state.searchActive = true;
                     state.searchQuery = query;
                     state.searchPage = 1;
+                    state.searchDisplayPage = 0;
                     state.searchAllLoaded = false;
                     fetchSearchResults(query);
+                }
+            }
+        });
+
+        prevPageBtn.addEventListener('click', () => {
+            if (state.searchActive) {
+                const targetPage = Math.max(1, (state.searchDisplayPage || 1) - 1);
+                if (targetPage !== state.searchDisplayPage) {
+                    messageContainer.innerHTML = '';
+                    state.searchAllLoaded = false;
+                    state.searchPage = targetPage;
+                    fetchSearchResults(state.searchQuery, targetPage);
+                }
+            } else {
+                const targetPage = Math.max(1, (state.displayPage || 1) - 1);
+                if (targetPage !== state.displayPage) {
+                    jumpToPage(targetPage);
+                }
+            }
+        });
+
+        nextPageBtn.addEventListener('click', () => {
+            if (state.searchActive) {
+                const targetPage = (state.searchDisplayPage || 1) + 1;
+                messageContainer.innerHTML = '';
+                state.searchAllLoaded = false;
+                state.searchPage = targetPage;
+                fetchSearchResults(state.searchQuery, targetPage);
+            } else {
+                const targetPage = Math.min(state.totalPages, (state.displayPage || 1) + 1);
+                if (targetPage !== state.displayPage) {
+                    jumpToPage(targetPage);
                 }
             }
         });
